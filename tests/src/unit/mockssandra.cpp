@@ -27,7 +27,11 @@
 #include "uuids.hpp"
 
 #include <openssl/bio.h>
+#if (OPENSSL_VERSION_NUMBER < 0x30000000L)
 #include <openssl/dh.h>
+#else
+#include <openssl/decoder.h>
+#endif
 #include <openssl/rsa.h>
 #include <openssl/x509v3.h>
 
@@ -79,7 +83,9 @@ struct FreeDeleterImpl {};
   };
 
 MAKE_DELETER(BIO, BIO_free)
+#if (OPENSSL_VERSION_NUMBER < 0x30000000L)
 MAKE_DELETER(DH, DH_free)
+#endif
 MAKE_DELETER(EVP_PKEY, EVP_PKEY_free)
 MAKE_DELETER(EVP_PKEY_CTX, EVP_PKEY_CTX_free)
 MAKE_DELETER(X509, X509_free)
@@ -125,7 +131,11 @@ EVP_PKEY* load_private_key(const String& key) {
   return pkey;
 }
 
+#if (OPENSSL_VERSION_NUMBER < 0x30000000L)
 DH* dh_parameters() {
+#else
+EVP_PKEY* dh_parameters() {
+#endif
   // Generated using the following command: `openssl dhparam -C 2048`
   // Prime length of 2048 chosen to bypass client-side error:
   // `SSL3_CHECK_CERT_AND_ALGORITHM:dh key too small`
@@ -144,7 +154,16 @@ DH* dh_parameters() {
       "-----END DH PARAMETERS-----";
   Scoped<BIO> bio(BIO_new_mem_buf(const_cast<char*>(dh_parameters_pem),
                                   -1)); // Use null terminator for length
+
+#if (OPENSSL_VERSION_NUMBER < 0x30000000L)
   return PEM_read_bio_DHparams(bio.get(), NULL, NULL, NULL);
+#else
+  EVP_PKEY *pkey = NULL;
+  OSSL_DECODER_CTX* decoder_context = OSSL_DECODER_CTX_new_for_pkey(&pkey, "PEM", NULL, "DH", EVP_PKEY_KEY_PARAMETERS, NULL, NULL);
+  OSSL_DECODER_from_bio(decoder_context, bio.get());
+  OSSL_DECODER_CTX_free(decoder_context);
+  return pkey;
+#endif
 }
 
 } // namespace
@@ -417,7 +436,11 @@ bool ClientConnection::has_ssl_error(int rc) {
     int flags;
     int err;
     String error;
+#if (OPENSSL_VERSION_NUMBER < 0x30000000L)
     while ((err = ERR_get_error_line_data(NULL, NULL, &data, &flags)) != 0) {
+#else
+    while ((err = ERR_get_error_all(NULL, NULL, NULL, &data, &flags)) != 0) {
+#endif
       char buf[256];
       ERR_error_string_n(err, buf, sizeof(buf));
       if (!error.empty()) error.push_back(',');
@@ -552,8 +575,13 @@ bool ServerConnection::use_ssl(const String& key, const String& cert,
     return false;
   }
 
+#if (OPENSSL_VERSION_NUMBER < 0x30000000L)
   Scoped<DH> dh(dh_parameters());
   if (!dh || !SSL_CTX_set_tmp_dh(ssl_context_, dh.get())) {
+#else
+  Scoped<EVP_PKEY> dh(dh_parameters());
+  if (!dh || !SSL_CTX_set0_tmp_dh_pkey(ssl_context_, dh.get())) {
+#endif
     print_ssl_error();
     return false;
   }

@@ -33,7 +33,7 @@
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
 #define ASN1_STRING_get0_data ASN1_STRING_data
-#else
+#elif OPENSSL_VERSION_NUMBER < 0x30000000L
 #define SSL_F_SSL_CTX_USE_CERTIFICATE_CHAIN_FILE SSL_F_USE_CERTIFICATE_CHAIN_FILE
 #endif
 
@@ -183,7 +183,11 @@ static int SSL_CTX_use_certificate_chain_bio(SSL_CTX* ctx, BIO* in) {
 
   x = PEM_read_bio_X509_AUX(in, NULL, pem_password_callback, NULL);
   if (x == NULL) {
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    ERR_raise(ERR_LIB_SSL, ERR_R_PEM_LIB);
+#else
     SSLerr(SSL_F_SSL_CTX_USE_CERTIFICATE_CHAIN_FILE, ERR_R_PEM_LIB);
+#endif
     goto end;
   }
 
@@ -467,7 +471,11 @@ void OpenSslSession::do_handshake() {
 void OpenSslSession::verify() {
   if (!verify_flags_) return;
 
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
   X509* peer_cert = SSL_get_peer_certificate(ssl_);
+#else
+  X509* peer_cert = SSL_get1_peer_certificate(ssl_);
+#endif
   if (peer_cert == NULL) {
     error_code_ = CASS_ERROR_SSL_NO_PEER_CERT;
     error_message_ = "No peer certificate found";
