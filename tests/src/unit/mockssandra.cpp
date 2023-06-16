@@ -28,6 +28,7 @@
 
 #include <openssl/bio.h>
 #include <openssl/dh.h>
+#include <openssl/rsa.h>
 #include <openssl/x509v3.h>
 
 #ifdef WIN32

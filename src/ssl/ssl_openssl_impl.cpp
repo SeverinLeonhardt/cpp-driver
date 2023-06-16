@@ -163,6 +163,7 @@ static void crypto_locking_callback(int mode, int n, const char* file, int line)
   }
 }
 
+#if OPENSSL_VERSION_NUMBER < 0x10000000L
 static unsigned long crypto_id_callback() {
 #if defined(WIN32) || defined(_WIN32)
   return static_cast<unsigned long>(GetCurrentThreadId());
@@ -170,6 +171,7 @@ static unsigned long crypto_id_callback() {
   return copy_cast<uv_thread_t, unsigned long>(uv_thread_self());
 #endif
 }
+#endif
 #endif
 
 // Implementation taken from OpenSSL's SSL_CTX_use_certificate_chain_file()
@@ -658,7 +660,9 @@ void OpenSslContextFactory::internal_init() {
   }
 
   CRYPTO_set_locking_callback(crypto_locking_callback);
+#if OPENSSL_VERSION_NUMBER < 0x10000000L
   CRYPTO_set_id_callback(crypto_id_callback);
+#endif
 
 #else
   rb::RingBufferBio::initialize();
@@ -683,6 +687,8 @@ void OpenSslContextFactory::internal_cleanup() {
   ERR_free_strings();
   CRYPTO_cleanup_all_ex_data();
   CRYPTO_set_locking_callback(NULL);
+#endif
+#if OPENSSL_VERSION_NUMBER < 0x10000000L
   CRYPTO_set_id_callback(NULL);
 #endif
 #if OPENSSL_VERSION_NUMBER < 0x10100000L && OPENSSL_VERSION_NUMBER > 0x10002000L
