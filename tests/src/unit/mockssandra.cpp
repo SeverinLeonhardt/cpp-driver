@@ -202,8 +202,13 @@ String Ssl::generate_cert(const String& key, String cn, String ca_cert, String c
   Scoped<X509> x509(X509_new());
   X509_set_version(x509.get(), 2);
   ASN1_INTEGER_set(X509_get_serialNumber(x509.get()), 0);
+  #if OPENSSL_VERSION_NUMBER >= 0x10100000L
+  X509_gmtime_adj(X509_getm_notBefore(x509.get()), 0);
+  X509_gmtime_adj(X509_getm_notAfter(x509.get()), static_cast<long>(60 * 60 * 24 * 365));
+  #else
   X509_gmtime_adj(X509_get_notBefore(x509.get()), 0);
   X509_gmtime_adj(X509_get_notAfter(x509.get()), static_cast<long>(60 * 60 * 24 * 365));
+  #endif
   X509_set_pubkey(x509.get(), pkey.get());
 
   if (x509_req) {
